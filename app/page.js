@@ -1,7 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
-
-// ─── DATA ─────────────────────────────────────────────────────────────────────
+import { useState, useRef, useEffect } from "react";
 
 const DEFAULT_NETWORKS = {
   buffaloed: {
@@ -73,6 +71,120 @@ const NETWORK_FIELDS = [
   { key: "notThis", label: "What It's Not", desc: "Guardrails. What this channel never sounds like.", rows: 2 },
 ];
 
+// ─── HISTORY ──────────────────────────────────────────────────────────────────
+
+const HISTORY_KEY = "brief_engine_history";
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } }
+function saveToHistory(entry) { try { const h = loadHistory(); h.unshift(entry); localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 50))); } catch {} }
+function deleteFromHistory(id) { try { const h = loadHistory().filter(e => e.id !== id); localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch {} }
+
+// ─── HTML EXPORT ──────────────────────────────────────────────────────────────
+
+function exportHTML(parsedArray, meta) {
+  const date = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
+  const assetsHTML = (parsedArray.assets || []).map(asset => {
+    const platforms = Object.entries(asset.platform_copy || {});
+    const platformsHTML = platforms.map(([p, copy]) => `
+      <div class="platform-block">
+        <div class="platform-label">${p.toUpperCase()}</div>
+        <div class="platform-copy">${copy.replace(/\n/g, "<br>")}</div>
+      </div>`).join("");
+    return `
+    <div class="asset-card">
+      <div class="asset-header">
+        <span class="badge">${asset.type}</span>
+        <div class="asset-title">${asset.title}</div>
+      </div>
+      <div class="asset-body">
+        <div class="field">
+          <div class="field-label">Source Moment</div>
+          <div class="source-moment">
+            <div class="sm-line"><span class="sm-tag">OPEN</span> "${asset.source_moment?.opening}"</div>
+            <div class="sm-line"><span class="sm-tag">CLOSE</span> "${asset.source_moment?.closing}"</div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Thumbnail Direction</div>
+          <div class="field-value italic">${asset.thumbnail_direction}</div>
+        </div>
+        ${platformsHTML}
+      </div>
+    </div>`;
+  }).join("");
+
+  const notes = parsedArray.production_notes;
+  const notesHTML = notes ? `
+    <div class="notes-section">
+      <div class="notes-title">Production Notes</div>
+      ${notes.recurring_themes?.length ? `<div class="notes-group"><div class="notes-group-label">Recurring Themes</div>${notes.recurring_themes.map(t => `<div class="notes-item">— ${t}</div>`).join("")}</div>` : ""}
+      ${notes.flagged_for_future?.length ? `<div class="notes-group"><div class="notes-group-label">Flagged for Future</div>${notes.flagged_for_future.map(t => `<div class="notes-item">— ${t}</div>`).join("")}</div>` : ""}
+      ${notes.publish_sequence?.length ? `<div class="notes-group"><div class="notes-group-label">Publish Sequence</div>${notes.publish_sequence.map(s => { const a = parsedArray.assets?.find(x => x.id === s.asset_id); return `<div class="notes-item"><strong>${s.order}. ${a?.title || s.asset_id}</strong> — ${s.rationale}</div>`; }).join("")}</div>` : ""}
+    </div>` : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Media Array — ${meta.network}${meta.sponsor ? ` · ${meta.sponsor}` : ""}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0C0B;color:#E8E0D4;font-family:'DM Sans',sans-serif;padding:48px 32px;max-width:900px;margin:0 auto}
+  .header{margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #222}
+  .header-studio{font-size:10px;color:#C4A82A;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px}
+  .header-title{font-family:'Bebas Neue';font-size:36px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:4px}
+  .header-meta{font-size:12px;color:#555;letter-spacing:.04em}
+  .asset-card{background:#111110;border:1px solid #222;border-radius:4px;margin-bottom:20px;overflow:hidden}
+  .asset-header{padding:16px 20px 12px;border-bottom:1px solid #1a1a18}
+  .badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:rgba(196,168,42,.12);color:#C4A82A;margin-bottom:8px}
+  .asset-title{font-family:'Bebas Neue';font-size:22px;letter-spacing:.06em;color:#E8E0D4}
+  .asset-body{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+  .field-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#444;margin-bottom:6px}
+  .field-value{font-size:13px;line-height:1.65;color:#a0988e}
+  .field-value.italic{font-style:italic}
+  .source-moment{background:#0a0a09;border:1px solid #1a1a18;border-radius:3px;padding:12px 14px}
+  .sm-line{font-size:12px;color:#888;font-style:italic;line-height:1.6;margin-bottom:4px}
+  .sm-line:last-child{margin-bottom:0}
+  .sm-tag{color:#C4A82A;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.1em;margin-right:6px}
+  .platform-block{background:#0a0a09;border:1px solid #1a1a18;border-radius:3px;padding:12px 14px}
+  .platform-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#C4A82A;margin-bottom:8px}
+  .platform-copy{font-size:12px;line-height:1.75;color:#a0988e}
+  .notes-section{background:#0e0e0d;border:1px solid #1a1a18;border-radius:4px;padding:20px;margin-top:8px}
+  .notes-title{font-family:'Bebas Neue';font-size:18px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:16px}
+  .notes-group{margin-bottom:16px}
+  .notes-group-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#C4A82A;margin-bottom:8px}
+  .notes-item{font-size:12px;color:#a0988e;line-height:1.6;margin-bottom:5px}
+  @media print{body{background:#fff;color:#111}
+    .asset-card{border-color:#ddd;background:#fafafa}
+    .asset-header,.platform-block,.source-moment,.notes-section{background:#f5f5f5;border-color:#ddd}
+    .badge{background:#f0e8cc;color:#8a6f00}
+    .asset-title,.notes-title{color:#111}
+    .field-value,.sm-line,.platform-copy,.notes-item{color:#333}
+    .sm-tag,.platform-label,.notes-group-label,.header-studio{color:#8a6f00}
+    .field-label{color:#666}}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-studio">Indelible · Content OS</div>
+    <div class="header-title">Media Array — ${meta.network}${meta.sponsor ? ` · ${meta.sponsor}` : ""}</div>
+    <div class="header-meta">${(parsedArray.assets || []).length} assets · Generated ${date}</div>
+  </div>
+  ${assetsHTML}
+  ${notesHTML}
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `media-array-${meta.network}-${Date.now()}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── PROMPT BUILDERS ──────────────────────────────────────────────────────────
 
 function buildNetworkTone(net) {
@@ -84,7 +196,7 @@ function buildArrayPrompt({ networks, network, sponsor, assetTypes, platforms, t
   let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully. Identify powerful moments. Produce a complete Media Array Breakdown as a JSON object.\n\n${buildNetworkTone(net)}\n`;
   if (sponsor) p += `\nSPONSOR: ${sponsor.name} | Archetype: ${sponsor.archetype}\nMoral: ${sponsor.moral}\nPromise: ${sponsor.promise}\nAudience: ${sponsor.audience}\nUse network moral and pillars as the filter for clip selection. Layer sponsor archetype into framing.\n`;
   if (context) p += `\nCONTEXT: ${context}\n`;
-  p += `\nASSET TYPES: ${assetTypes.join(", ")}\nPLATFORMS: ${platforms.join(", ")}\n\nTRANSCRIPT:\n${transcript}\n\n---\n\nReturn ONLY a valid JSON object. No markdown, no explanation, no code fences. The JSON must follow this exact schema:\n\n{\n  "assets": [\n    {\n      "id": "asset_1",\n      "title": "Working title for this asset",\n      "type": "Asset type (e.g. Social Short, Teaser Clip)",\n      "source_moment": {\n        "opening": "Verbatim opening line from transcript",\n        "closing": "Verbatim closing line from transcript"\n      },\n      "why_this_works": "One sentence — why this moment earns this asset type AND serves the network moral",\n      "hook": "The first words or image — what stops the scroll",\n      "story_arc": ["Beat 1", "Beat 2", "Beat 3"],\n      "thumbnail_direction": "What the thumbnail should communicate — not describe, communicate",\n      "platform_copy": {\n        "youtube": "Full YouTube caption with hashtags and CTA",\n        "instagram": "Instagram caption with hashtags",\n        "linkedin": "LinkedIn caption"\n      }\n    }\n  ],\n  "production_notes": {\n    "recurring_themes": ["Theme or line that should appear across multiple assets"],\n    "flagged_for_future": ["Strong moments not used — with brief note on potential"],\n    "publish_sequence": [\n      { "order": 1, "asset_id": "asset_1", "rationale": "Why this goes first" }\n    ]\n  }\n}\n\nOnly include platform keys for the requested platforms. Generate the right quantity of assets for each requested type. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.`;
+  p += `\nASSET TYPES: ${assetTypes.join(", ")}\nPLATFORMS: ${platforms.join(", ")}\n\nTRANSCRIPT:\n${transcript}\n\n---\n\nReturn ONLY a valid JSON object. No markdown, no explanation, no code fences. The JSON must follow this exact schema:\n\n{\n  "assets": [\n    {\n      "id": "asset_1",\n      "title": "Working title for this asset",\n      "type": "Asset type (e.g. Social Short, Teaser Clip)",\n      "source_moment": {\n        "opening": "Verbatim opening line from transcript",\n        "closing": "Verbatim closing line from transcript"\n      },\n      "thumbnail_direction": "What the thumbnail should communicate — not describe, communicate",\n      "platform_copy": {\n        "youtube": "Full YouTube caption with hashtags and CTA",\n        "instagram": "Instagram caption with hashtags",\n        "linkedin": "LinkedIn caption"\n      }\n    }\n  ],\n  "production_notes": {\n    "recurring_themes": ["Theme or line that should appear across multiple assets"],\n    "flagged_for_future": ["Strong moments not used — with brief note on potential"],\n    "publish_sequence": [\n      { "order": 1, "asset_id": "asset_1", "rationale": "Why this goes first" }\n    ]\n  }\n}\n\nOnly include platform keys for the requested platforms. Generate the right quantity of assets for each requested type. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.`;
   return p;
 }
 
@@ -153,69 +265,95 @@ function SettingsPanel({ networks, onSave, onReset }) {
   );
 }
 
-// ─── ASSET CARD ───────────────────────────────────────────────────────────────
+// ─── HISTORY PANEL ────────────────────────────────────────────────────────────
 
-function AssetCard({ asset, status, onApprove, onReject, platforms }) {
+function HistoryPanel({ onRestore }) {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    setHistory(loadHistory());
+  }, []);
+
+  const handleDelete = (id) => {
+    deleteFromHistory(id);
+    setHistory(loadHistory());
+  };
+
+  if (history.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 0", color: "#343432", fontSize: 13 }}>
+        No history yet. Generated arrays will appear here.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      {history.map(entry => (
+        <div key={entry.id} style={{ background: "#111110", border: "1px solid #1e1e1c", borderRadius: 3, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontFamily: "Bebas Neue", fontSize: 16, letterSpacing: ".06em", color: "#E8E0D4" }}>{entry.network}</span>
+              {entry.sponsor && <span style={{ fontSize: 10, color: "#C4A82A" }}>· {entry.sponsor}</span>}
+              <span style={{ fontSize: 10, color: "#333", marginLeft: "auto" }}>{entry.assets} assets</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#444", letterSpacing: ".04em" }}>{entry.date}</div>
+          </div>
+          <button
+            onClick={() => onRestore(entry)}
+            style={{ background: "transparent", border: "1px solid #2a2a28", color: "#888", padding: "5px 12px", fontSize: 10, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", borderRadius: 2, letterSpacing: ".06em", textTransform: "uppercase", transition: "all .15s" }}
+            onMouseOver={e => { e.target.style.borderColor = "#C4A82A"; e.target.style.color = "#C4A82A"; }}
+            onMouseOut={e => { e.target.style.borderColor = "#2a2a28"; e.target.style.color = "#888"; }}
+          >
+            Restore
+          </button>
+          <button
+            onClick={() => handleDelete(entry.id)}
+            style={{ background: "transparent", border: "1px solid #1e1e1c", color: "#444", padding: "5px 10px", fontSize: 10, fontFamily: "'DM Sans', sans-serif", cursor: "pointer", borderRadius: 2, transition: "all .15s" }}
+            onMouseOver={e => { e.target.style.color = "#CF6679"; e.target.style.borderColor = "#6F2A2A"; }}
+            onMouseOut={e => { e.target.style.color = "#444"; e.target.style.borderColor = "#1e1e1c"; }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── ASSET CARD (simplified) ──────────────────────────────────────────────────
+
+function AssetCard({ asset, status, onApprove, onReject }) {
   const [activePlatform, setActivePlatform] = useState(Object.keys(asset.platform_copy || {})[0] || "youtube");
   const [copied, setCopied] = useState(false);
-
   const availablePlatforms = Object.keys(asset.platform_copy || {}).filter(p => asset.platform_copy[p]);
   const currentCopy = asset.platform_copy?.[activePlatform] || "";
 
-  const copyText = () => {
-    navigator.clipboard.writeText(currentCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className={`asset-card ${status}`}>
-      {/* Header */}
       <div className="card-header">
         <div>
           <div className="card-type-badge" style={{ marginBottom: 8 }}>{asset.type}</div>
           <div className="card-title">"{asset.title}"</div>
         </div>
       </div>
-
       <div className="card-body">
         {/* Source Moment */}
         <div>
           <div className="card-field-label">Source Moment</div>
           <div className="source-moment">
-            <span>"{asset.source_moment?.opening}"</span>
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>OPEN</span>
+              <span>"{asset.source_moment?.opening}"</span>
+            </div>
             {asset.source_moment?.closing && asset.source_moment.closing !== asset.source_moment.opening && (
-              <> &nbsp;→&nbsp; <span>"{asset.source_moment?.closing}"</span></>
+              <div>
+                <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>CLOSE</span>
+                <span>"{asset.source_moment?.closing}"</span>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Why / Hook row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          <div>
-            <div className="card-field-label">Why This Works</div>
-            <div className="card-field-value">{asset.why_this_works}</div>
-          </div>
-          <div>
-            <div className="card-field-label">Hook</div>
-            <div className="card-field-value highlight">{asset.hook}</div>
-          </div>
-        </div>
-
-        {/* Story Arc */}
-        {asset.story_arc?.length > 0 && (
-          <div>
-            <div className="card-field-label">Story Arc</div>
-            <div>
-              {asset.story_arc.map((beat, i) => (
-                <div key={i} className="story-beat">
-                  <span className="beat-num">{i + 1}</span>
-                  <span>{beat}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Thumbnail */}
         <div>
@@ -229,30 +367,22 @@ function AssetCard({ asset, status, onApprove, onReject, platforms }) {
             <div className="card-field-label">Platform Copy</div>
             <div className="platform-tab-row">
               {availablePlatforms.map(p => (
-                <button key={p} className={`platform-tab ${activePlatform === p ? "active" : ""}`} onClick={() => setActivePlatform(p)}>
-                  {p}
-                </button>
+                <button key={p} className={`platform-tab ${activePlatform === p ? "active" : ""}`} onClick={() => setActivePlatform(p)}>{p}</button>
               ))}
             </div>
             <div className="platform-copy-box">
               {currentCopy}
-              <button className="copy-copy-btn" onClick={copyText}>{copied ? "Copied ✓" : "Copy"}</button>
+              <button className="copy-copy-btn" onClick={() => { navigator.clipboard.writeText(currentCopy); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
             </div>
           </div>
         )}
       </div>
-
-      {/* Actions */}
       <div className="card-actions">
-        <button className={`approve-btn ${status === "approved" ? "active" : ""}`} onClick={onApprove}>
-          {status === "approved" ? "✓ Approved" : "Approve"}
-        </button>
-        <button className={`reject-btn ${status === "rejected" ? "active" : ""}`} onClick={onReject}>
-          {status === "rejected" ? "✕ Rejected" : "Reject"}
-        </button>
-        <span className={`status-badge ${status}`}>
-          {status === "pending" ? "Awaiting review" : status === "approved" ? "Approved" : "Rejected"}
-        </span>
+        <button className={`approve-btn ${status === "approved" ? "active" : ""}`} onClick={onApprove}>{status === "approved" ? "✓ Approved" : "Approve"}</button>
+        <button className={`reject-btn ${status === "rejected" ? "active" : ""}`} onClick={onReject}>{status === "rejected" ? "✕ Rejected" : "Reject"}</button>
+        <span className={`status-badge ${status}`}>{status === "pending" ? "Awaiting review" : status === "approved" ? "Approved" : "Rejected"}</span>
       </div>
     </div>
   );
@@ -265,36 +395,24 @@ function ProductionNotes({ notes, assets }) {
   return (
     <div className="prod-notes">
       <div style={{ fontFamily: "Bebas Neue", fontSize: 18, letterSpacing: ".08em", color: "#E8E0D4", marginBottom: 16 }}>Production Notes</div>
-
       {notes.recurring_themes?.length > 0 && (
         <div className="prod-notes-section">
           <div className="prod-notes-title">Recurring Themes & Lines</div>
-          {notes.recurring_themes.map((t, i) => (
-            <div key={i} className="prod-notes-item"><span className="prod-notes-dot">—</span><span>{t}</span></div>
-          ))}
+          {notes.recurring_themes.map((t, i) => <div key={i} className="prod-notes-item"><span className="prod-notes-dot">—</span><span>{t}</span></div>)}
         </div>
       )}
-
       {notes.flagged_for_future?.length > 0 && (
         <div className="prod-notes-section">
           <div className="prod-notes-title">Flagged for Future Use</div>
-          {notes.flagged_for_future.map((t, i) => (
-            <div key={i} className="prod-notes-item"><span className="prod-notes-dot">—</span><span>{t}</span></div>
-          ))}
+          {notes.flagged_for_future.map((t, i) => <div key={i} className="prod-notes-item"><span className="prod-notes-dot">—</span><span>{t}</span></div>)}
         </div>
       )}
-
       {notes.publish_sequence?.length > 0 && (
         <div className="prod-notes-section">
           <div className="prod-notes-title">Suggested Publish Sequence</div>
           {notes.publish_sequence.map((s, i) => {
             const asset = assets.find(a => a.id === s.asset_id);
-            return (
-              <div key={i} className="prod-notes-item">
-                <span className="prod-notes-dot">{s.order}</span>
-                <span><strong style={{ color: "#C8C0B4" }}>{asset?.title || s.asset_id}</strong> — {s.rationale}</span>
-              </div>
-            );
+            return <div key={i} className="prod-notes-item"><span className="prod-notes-dot">{s.order}</span><span><strong style={{ color: "#C8C0B4" }}>{asset?.title || s.asset_id}</strong> — {s.rationale}</span></div>;
           })}
         </div>
       )}
@@ -322,19 +440,17 @@ export default function BriefEngine() {
   const [description, setDescription] = useState("");
   const [useQT, setUseQT] = useState(false);
   const [qTranscript, setQTranscript] = useState("");
-
-  // Output state
   const [rawOutput, setRawOutput] = useState("");
-  const [parsedArray, setParsedArray] = useState(null); // { assets, production_notes }
+  const [parsedArray, setParsedArray] = useState(null);
   const [parseError, setParseError] = useState(false);
-  const [approvals, setApprovals] = useState({}); // { asset_id: "approved" | "rejected" | "pending" }
+  const [approvals, setApprovals] = useState({});
   const [streaming, setStreaming] = useState(false);
   const [done, setDone] = useState(false);
   const [notionStatus, setNotionStatus] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [exportMeta, setExportMeta] = useState(null);
 
   const outRef = useRef(null);
-
   const abortRef = useRef(null);
 
   const netSponsors = Object.values(DEFAULT_SPONSORS).filter(b => !network || b.network === network);
@@ -356,7 +472,6 @@ export default function BriefEngine() {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
     setStreaming(true); setDone(false); setRawOutput("");
     setParsedArray(null); setParseError(false); setApprovals({});
     setTimeout(() => outRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
@@ -367,78 +482,98 @@ export default function BriefEngine() {
 
     let fullText = "";
 
-   try {
-  if (mode === "array") {
-    // Non-streaming for array mode — get clean JSON back
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({ prompt, stream: false }),
-    });
-    const data = await res.json();
-    fullText = data.text;
-    setRawOutput(fullText);
-  } else {
-    // Streaming for quick mode
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({ prompt, stream: true }),
-    });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { done: rd, value } = await reader.read();
-      if (rd) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") continue;
-        try {
-          const json = JSON.parse(data);
-          if (json.type === "content_block_delta" && json.delta?.type === "text_delta") {
-            fullText += json.delta.text;
-            setRawOutput(fullText);
+    try {
+      if (mode === "array") {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt, stream: false }),
+        });
+        const data = await res.json();
+        fullText = data.text;
+        setRawOutput(fullText);
+      } else {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt, stream: true }),
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done: rd, value } = await reader.read();
+          if (rd) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") continue;
+            try {
+              const json = JSON.parse(data);
+              if (json.type === "content_block_delta" && json.delta?.type === "text_delta") {
+                fullText += json.delta.text;
+                setRawOutput(fullText);
+              }
+            } catch {}
           }
-        } catch {}
+        }
       }
+    } catch (e) {
+      if (e.name !== "AbortError") setRawOutput("[Error — please try again]");
     }
-  }
-} catch (e) {
-  if (e.name !== "AbortError") setRawOutput("[Error — please try again]");
-}
 
     setStreaming(false);
     setDone(true);
 
-    // Parse JSON if array mode
     if (mode === "array" && fullText) {
       try {
         let clean = fullText.replace(/```json|```/g, "").trim();
         const start = clean.indexOf("{");
         const end = clean.lastIndexOf("}");
-        if (start !== -1 && end !== -1) {
-          clean = clean.slice(start, end + 1);
-        }
-        // Fix unescaped quotes and problematic characters
+        if (start !== -1 && end !== -1) clean = clean.slice(start, end + 1);
         clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
         const parsed = JSON.parse(clean);
         setParsedArray(parsed);
-        // Init all assets as pending
         const initApprovals = {};
         (parsed.assets || []).forEach(a => { initApprovals[a.id] = "pending"; });
         setApprovals(initApprovals);
+
+        // Save to history
+        const meta = {
+          id: Date.now().toString(),
+          network: networks[network]?.name || network,
+          sponsor: activeSponsor?.name || null,
+          assets: parsed.assets?.length || 0,
+          date: new Date().toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+          parsedArray: parsed,
+          rawOutput: fullText,
+        };
+        setExportMeta({ network: networks[network]?.name || network, sponsor: activeSponsor?.name || null });
+        saveToHistory(meta);
       } catch (e) {
-        console.error("Parse failed:", e, "Raw text:", fullText.slice(0, 200));
+        console.error("Parse failed:", e, "Raw:", fullText.slice(0, 200));
         setParseError(true);
       }
     }
+  };
+
+  const restoreFromHistory = (entry) => {
+    setParsedArray(entry.parsedArray);
+    setRawOutput(entry.rawOutput || "");
+    setDone(true);
+    setStreaming(false);
+    setParseError(false);
+    const initApprovals = {};
+    (entry.parsedArray?.assets || []).forEach(a => { initApprovals[a.id] = "pending"; });
+    setApprovals(initApprovals);
+    setExportMeta({ network: entry.network, sponsor: entry.sponsor });
+    setAppTab("brief");
+    setTimeout(() => outRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
   const setApproval = (id, status) => {
@@ -449,7 +584,6 @@ export default function BriefEngine() {
     const approvedAssets = parsedArray?.assets?.filter(a => approvals[a.id] === "approved") || [];
     if (!approvedAssets.length) return;
     setNotionStatus("pushing");
-    // Notion integration placeholder — will wire up in Next.js
     await new Promise(r => setTimeout(r, 1800));
     setNotionStatus("done");
     setTimeout(() => setNotionStatus(null), 3000);
@@ -460,7 +594,6 @@ export default function BriefEngine() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0C0C0B", fontFamily: "'DM Sans',sans-serif", color: "#E8E0D4" }}>
-      
 
       {/* Header */}
       <div style={{ borderBottom: "1px solid #141412", padding: "0 40px", display: "flex", alignItems: "stretch", justifyContent: "space-between" }}>
@@ -469,7 +602,11 @@ export default function BriefEngine() {
           <span style={{ fontSize: 9, color: "#2a2a28", letterSpacing: ".16em", textTransform: "uppercase" }}>Indelible · Content OS</span>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
-          {[{ id: "brief", label: "Brief" }, { id: "settings", label: "Network Settings" }].map(t => (
+          {[
+            { id: "brief", label: "Brief" },
+            { id: "history", label: "History" },
+            { id: "settings", label: "Network Settings" },
+          ].map(t => (
             <button key={t.id} className={`nav-tab ${appTab === t.id ? "active" : ""}`} onClick={() => setAppTab(t.id)}>{t.label}</button>
           ))}
         </div>
@@ -488,10 +625,20 @@ export default function BriefEngine() {
           </div>
         )}
 
+        {/* HISTORY */}
+        {appTab === "history" && (
+          <div className="fu">
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontFamily: "Bebas Neue", fontSize: 20, letterSpacing: ".08em", marginBottom: 6 }}>History</div>
+              <div style={{ fontSize: 12, color: "#555", lineHeight: 1.6 }}>Previously generated arrays. Click Restore to bring one back into the card view.</div>
+            </div>
+            <HistoryPanel onRestore={restoreFromHistory} />
+          </div>
+        )}
+
         {/* BRIEF */}
         {appTab === "brief" && (
           <>
-            {/* Mode */}
             <div style={{ marginBottom: 36 }}>
               <div className="sl">Mode</div>
               <div style={{ display: "flex" }}>
@@ -577,7 +724,7 @@ export default function BriefEngine() {
               )}
             </div>
 
-            {/* Array mode fields */}
+            {/* Array mode */}
             {mode === "array" && (
               <>
                 <div style={{ marginBottom: 32 }}>
@@ -601,20 +748,16 @@ export default function BriefEngine() {
                     <div className="sl" style={{ marginBottom: 0 }}>05 — Full Transcript</div>
                     {transcript.length > 0 && <span className="wc">{wc(transcript).toLocaleString()} words</span>}
                   </div>
-                  <textarea className="fi" rows={13}
-                    placeholder={"Paste the full transcript here.\n\nInclude speaker labels and timestamps if available."}
-                    value={transcript} onChange={e => setTranscript(e.target.value)} />
+                  <textarea className="fi" rows={13} placeholder={"Paste the full transcript here.\n\nInclude speaker labels and timestamps if available."} value={transcript} onChange={e => setTranscript(e.target.value)} />
                 </div>
                 <div style={{ marginBottom: 32 }}>
                   <div className="sl">06 — Additional Context (optional)</div>
-                  <textarea className="fi" rows={3}
-                    placeholder={"e.g. 'Brand doc for Synergy's 20-year anniversary. Publish: Episode 1 at trade show June 26.'"}
-                    value={context} onChange={e => setContext(e.target.value)} />
+                  <textarea className="fi" rows={3} placeholder={"e.g. 'Brand doc for Synergy's 20-year anniversary. Publish: Episode 1 at trade show June 26.'"} value={context} onChange={e => setContext(e.target.value)} />
                 </div>
               </>
             )}
 
-            {/* Quick mode fields */}
+            {/* Quick mode */}
             {mode === "quick" && (
               <>
                 <div style={{ marginBottom: 32 }}>
@@ -647,12 +790,10 @@ export default function BriefEngine() {
               </>
             )}
 
-            {/* Generate */}
             <button className="gen" disabled={!canGen || streaming} onClick={generate}>
               {streaming ? (mode === "array" ? "READING TRANSCRIPT..." : "GENERATING...") : (mode === "array" ? "GENERATE MEDIA ARRAY" : "GENERATE BRIEF")}
             </button>
 
-            {/* Status bar */}
             {network && (
               <div style={{ marginTop: 8, padding: "7px 12px", background: "#111110", border: "1px solid #161614", borderRadius: 3, display: "flex", gap: 16, flexWrap: "wrap", fontSize: 9, color: "#2e2e2c", letterSpacing: ".06em" }}>
                 <span>Network: <span style={{ color: aNet?.color }}>{aNet?.name}</span></span>
@@ -662,66 +803,38 @@ export default function BriefEngine() {
               </div>
             )}
 
-            {/* ── OUTPUT AREA ── */}
             <div ref={outRef}>
-
-              {/* Streaming raw output (while generating) */}
               {streaming && rawOutput && (
                 <div style={{ marginTop: 44 }} className="fu">
-                  <div className="sl" style={{ marginBottom: 12 }}>
-                    Reading Transcript
-                    <span style={{ color: "#C4A82A", marginLeft: 8, fontSize: 9 }}>● STREAMING</span>
-                  </div>
-                  <div className="out" style={{ maxHeight: 300, overflow: "hidden" }}>
-                    {rawOutput.slice(-600)}
-                    <span className="cursor" />
-                  </div>
+                  <div className="sl" style={{ marginBottom: 12 }}>Reading Transcript <span style={{ color: "#C4A82A", marginLeft: 8, fontSize: 9 }}>● STREAMING</span></div>
+                  <div className="out" style={{ maxHeight: 300, overflow: "hidden" }}>{rawOutput.slice(-600)}<span className="cursor" /></div>
                 </div>
               )}
 
-              {/* Parsed card view */}
               {done && mode === "array" && !streaming && (
                 <div style={{ marginTop: 44 }} className="fu">
-
                   {parsedArray ? (
                     <>
-                      {/* Approval bar */}
                       <div className="approval-bar">
-                        <div style={{ fontFamily: "Bebas Neue", fontSize: 17, letterSpacing: ".08em", color: "#E8E0D4" }}>
-                          {totalAssets} Asset{totalAssets !== 1 ? "s" : ""} Generated
-                        </div>
+                        <div style={{ fontFamily: "Bebas Neue", fontSize: 17, letterSpacing: ".08em", color: "#E8E0D4" }}>{totalAssets} Asset{totalAssets !== 1 ? "s" : ""} Generated</div>
                         <div className="approval-stat approved"><span>{approvedCount}</span> approved</div>
                         <div className="approval-stat rejected"><span>{rejectedCount}</span> rejected</div>
                         <div className="approval-stat"><span>{totalAssets - approvedCount - rejectedCount}</span> pending</div>
                         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-                          <button className="cpb" onClick={() => { navigator.clipboard.writeText(rawOutput); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                            {copied ? "Copied ✓" : "Copy JSON"}
-                          </button>
-                          <button
-                            className="notion-btn"
-                            disabled={approvedCount === 0 || notionStatus === "pushing"}
-                            onClick={pushToNotion}
-                          >
+                          <button className="cpb" onClick={() => exportHTML(parsedArray, exportMeta || { network: "", sponsor: null })}>Export HTML</button>
+                          <button className="cpb" onClick={() => { navigator.clipboard.writeText(rawOutput); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>{copied ? "Copied ✓" : "Copy JSON"}</button>
+                          <button className="notion-btn" disabled={approvedCount === 0 || notionStatus === "pushing"} onClick={pushToNotion}>
                             {notionStatus === "pushing" ? "Pushing..." : notionStatus === "done" ? "✓ Sent to Notion" : `Push ${approvedCount > 0 ? approvedCount : ""} to Notion`}
                           </button>
                         </div>
                       </div>
-
-                      {/* Asset cards */}
                       <div style={{ display: "grid", gap: 16 }}>
                         {parsedArray.assets?.map(asset => (
-                          <AssetCard
-                            key={asset.id}
-                            asset={asset}
-                            status={approvals[asset.id] || "pending"}
-                            platforms={arrayPlats}
+                          <AssetCard key={asset.id} asset={asset} status={approvals[asset.id] || "pending"}
                             onApprove={() => setApproval(asset.id, "approved")}
-                            onReject={() => setApproval(asset.id, "rejected")}
-                          />
+                            onReject={() => setApproval(asset.id, "rejected")} />
                         ))}
                       </div>
-
-                      {/* Production notes */}
                       {parsedArray.production_notes && (
                         <div style={{ marginTop: 24 }}>
                           <ProductionNotes notes={parsedArray.production_notes} assets={parsedArray.assets || []} />
@@ -730,9 +843,7 @@ export default function BriefEngine() {
                     </>
                   ) : parseError ? (
                     <>
-                      <div style={{ marginBottom: 12, fontSize: 11, color: "#CF6679" }}>
-                        The model returned a response that couldn't be parsed as structured cards. Showing raw output — try generating again for card view.
-                      </div>
+                      <div style={{ marginBottom: 12, fontSize: 11, color: "#CF6679" }}>The model returned a response that couldn't be parsed as structured cards. Showing raw output — try generating again for card view.</div>
                       <div className="out">{rawOutput}</div>
                     </>
                   ) : (
@@ -741,14 +852,11 @@ export default function BriefEngine() {
                 </div>
               )}
 
-              {/* Quick mode output */}
               {done && mode === "quick" && !streaming && rawOutput && (
                 <div style={{ marginTop: 44 }} className="fu">
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <div className="sl" style={{ marginBottom: 0 }}>Generated Brief</div>
-                    <button className="cpb" onClick={() => { navigator.clipboard.writeText(rawOutput); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                      {copied ? "Copied ✓" : "Copy All"}
-                    </button>
+                    <button className="cpb" onClick={() => { navigator.clipboard.writeText(rawOutput); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>{copied ? "Copied ✓" : "Copy All"}</button>
                   </div>
                   <div className="out">{rawOutput}</div>
                 </div>
