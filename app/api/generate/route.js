@@ -1,11 +1,13 @@
+export const maxDuration = 60; // Extend Vercel function timeout (requires Pro plan)
+
 export async function POST(request) {
   const body = await request.json();
-  const { prompt, stream } = body;
+  const { prompt } = body;
 
   const payload = {
     model: "claude-sonnet-4-20250514",
     max_tokens: 8000,
-    stream: stream ?? false,
+    stream: true,
     messages: [{ role: "user", content: prompt }],
   };
 
@@ -19,17 +21,12 @@ export async function POST(request) {
     body: JSON.stringify(payload),
   });
 
-  if (stream) {
-    return new Response(response.body, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-      },
-    });
-  }
-
-  const data = await response.json();
-  const text = data.content?.[0]?.text ?? "";
-  return Response.json({ text });
+  // Always stream back to the client
+  return new Response(response.body, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
 }
