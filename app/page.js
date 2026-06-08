@@ -624,33 +624,46 @@ export default function BriefEngine() {
     let fullText = "";
 
     try {
-      // Both modes now stream — avoids Vercel function timeouts on long transcripts
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({ prompt, stream: true }),
-      });
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done: rd, value } = await reader.read();
-        if (rd) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") continue;
-          try {
-            const json = JSON.parse(data);
-            if (json.type === "content_block_delta" && json.delta?.type === "text_delta") {
-              fullText += json.delta.text;
-              setRawOutput(fullText);
-            }
-          } catch {}
+      if (mode === "array") {
+        // Non-streaming for array mode — waits for complete JSON then parses into cards
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt, stream: false }),
+        });
+        const data = await res.json();
+        fullText = data.text;
+        setRawOutput(fullText);
+      } else {
+        // Streaming for quick mode — shows output token by token
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt, stream: true }),
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done: rd, value } = await reader.read();
+          if (rd) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") continue;
+            try {
+              const json = JSON.parse(data);
+              if (json.type === "content_block_delta" && json.delta?.type === "text_delta") {
+                fullText += json.delta.text;
+                setRawOutput(fullText);
+              }
+            } catch {}
+          }
         }
       }
     } catch (e) {
