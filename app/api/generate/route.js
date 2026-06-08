@@ -1,13 +1,13 @@
-export const maxDuration = 60; // Extend Vercel function timeout (requires Pro plan)
+export const maxDuration = 60; // Requires Vercel Pro — ignored on Hobby plan
 
 export async function POST(request) {
   const body = await request.json();
-  const { prompt } = body;
+  const { prompt, stream } = body;
 
   const payload = {
     model: "claude-sonnet-4-20250514",
     max_tokens: 8000,
-    stream: true,
+    stream: stream ?? false,
     messages: [{ role: "user", content: prompt }],
   };
 
@@ -21,12 +21,17 @@ export async function POST(request) {
     body: JSON.stringify(payload),
   });
 
-  // Always stream back to the client
-  return new Response(response.body, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-    },
-  });
+  if (stream) {
+    return new Response(response.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
+  }
+
+  const data = await response.json();
+  const text = data.content?.[0]?.text ?? "";
+  return Response.json({ text });
 }
