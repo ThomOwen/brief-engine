@@ -458,6 +458,8 @@ Return ONLY a valid JSON object. No markdown, no explanation, no code fences. Th
 Only include platform keys for the requested platforms. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.
 
 FINAL CHECK: Count the assets array in your JSON before returning. It must contain exactly ${totalAssets} items. If the count is short, generate the missing assets before closing the JSON.`;
+
+  return p;
 }
 
 function buildQuickPrompt({ networks, network, sponsor, contentType, platforms, description, transcript }) {
