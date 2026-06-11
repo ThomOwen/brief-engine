@@ -327,12 +327,118 @@ function buildNetworkTone(net) {
   return `NETWORK: ${net.name}\nMISSION: ${net.mission}\nTONE & VOICE: ${net.tone}\nAUDIENCE: ${net.audience}\nCONTENT PILLARS: ${net.pillars}\nTHE MORAL: ${net.moral}\nWHAT IT IS NOT: ${net.notThis}`;
 }
 
+const ASSET_TYPE_SPECS = {
+  "Promo Trailer": {
+    count: 1,
+    finished: "90–180 seconds",
+    source: "Requires a 3–6 minute source span",
+    note: "The flagship asset. Must have setup, a central tension or insight, and a clear resolution. Do not select this unless the transcript contains a complete narrative arc.",
+  },
+  "Teaser Clip": {
+    count: 1,
+    finished: "60–90 seconds",
+    source: "Requires a 90 second–2 minute source span",
+    note: "Opens a loop without closing it. Creates curiosity. Never fully resolves — the viewer should want more.",
+  },
+  "Segment Breakdown": {
+    count: 1,
+    finished: "5–12 minutes",
+    source: "Requires a substantial continuous source span on a single topic",
+    note: "Full development of one idea from setup through resolution. Not a highlight reel — a complete segment.",
+  },
+  "Social Short": {
+    count: 6,
+    finished: "30–60 seconds",
+    source: "Tight source span — one self-contained moment",
+    note: "Each must be a complete thought. Vary the angles, emotions, and target audiences across the six. No two should feel like the same clip.",
+  },
+  "Quote / Soundbite": {
+    count: 6,
+    finished: "10–30 seconds",
+    source: "Single line or two-line exchange",
+    note: "Standalone power. Each should land without context. Select lines with the sharpest moral clarity.",
+  },
+  "Full Episode Cut": {
+    count: 1,
+    finished: "Full episode length",
+    source: "Full transcript",
+    note: "Complete episode — minimal trimming. Opening and closing are the episode boundaries.",
+  },
+};
+
 function buildArrayPrompt({ networks, network, sponsor, assetTypes, platforms, transcript, context }) {
   const net = networks[network];
-  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully. Identify powerful moments. Produce a complete Media Array Breakdown as a JSON object.\n\n${buildNetworkTone(net)}\n`;
+
+  // Build per-type instructions for selected asset types
+  const assetInstructions = assetTypes.map(label => {
+    const spec = ASSET_TYPE_SPECS[label];
+    if (!spec) return `- ${label}: produce 1`;
+    return `- ${label}: produce exactly ${spec.count} | Finished length: ${spec.finished} | ${spec.source} | ${spec.note}`;
+  }).join("\n");
+
+  const totalAssets = assetTypes.reduce((sum, label) => {
+    const spec = ASSET_TYPE_SPECS[label];
+    return sum + (spec ? spec.count : 1);
+  }, 0);
+
+  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully before selecting any moments. Produce a complete Media Array Breakdown as a JSON object.\n\n${buildNetworkTone(net)}\n`;
   if (sponsor) p += `\nSPONSOR: ${sponsor.name} | Archetype: ${sponsor.archetype}\nMoral: ${sponsor.moral}\nPromise: ${sponsor.promise}\nAudience: ${sponsor.audience}\nUse network moral and pillars as the filter for clip selection. Layer sponsor archetype into framing.\n`;
   if (context) p += `\nCONTEXT: ${context}\n`;
-  p += `\nASSET TYPES: ${assetTypes.join(", ")}\nPLATFORMS: ${platforms.join(", ")}\n\nTRANSCRIPT:\n${transcript}\n\n---\n\nReturn ONLY a valid JSON object. No markdown, no explanation, no code fences. The JSON must follow this exact schema:\n\n{\n  "assets": [\n    {\n      "id": "asset_1",\n      "title": "Working title for this asset",\n      "type": "Asset type (e.g. Social Short, Teaser Clip)",\n      "source_moment": {\n        "opening": "Verbatim opening line from transcript",\n        "closing": "Verbatim closing line from transcript"\n      },\n      "thumbnail_direction": "What the thumbnail should communicate — not describe, communicate",\n      "platform_copy": {\n        "youtube": "Full YouTube caption with hashtags and CTA",\n        "instagram": "Instagram caption with hashtags",\n        "linkedin": "LinkedIn caption"\n      }\n    }\n  ],\n  "production_notes": {\n    "recurring_themes": ["Theme or line that should appear across multiple assets"],\n    "flagged_for_future": ["Strong moments not used — with brief note on potential"],\n    "publish_sequence": [\n      { "order": 1, "asset_id": "asset_1", "rationale": "Why this goes first" }\n    ]\n  }\n}\n\nOnly include platform keys for the requested platforms. Generate the right quantity of assets for each requested type. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.`;
+
+  p += `
+REQUIRED ASSET OUTPUT (${totalAssets} total assets):
+${assetInstructions}
+
+PLATFORMS: ${platforms.join(", ")}
+
+CLOSING LINE RULE:
+For any asset longer than 30 seconds, the closing line must resolve the thought. It is not simply where the speaker pauses or the clip ends — it is the line that lands the point, completes the arc, or delivers the moral. Choose deliberately. If no clean resolution exists in the transcript, find the closest landing and note it.
+
+SOURCE MOMENT FORMAT:
+Every asset requires three fields:
+- opening: Verbatim first line from the transcript that begins the clip
+- arc: 2–3 sentences describing what happens between opening and closing — the development, turn, build, or argument
+- closing: Verbatim final line — the resolution. For assets under 30 seconds, this is the punchline or the sharpest line. For assets over 30 seconds, this must close the thought.
+- closing_rationale: One sentence explaining why this line ends the clip — what it resolves, lands, or completes. Omit for assets under 30 seconds.
+
+TRANSCRIPT:
+${transcript}
+
+---
+
+Return ONLY a valid JSON object. No markdown, no explanation, no code fences. The JSON must follow this exact schema:
+
+{
+  "assets": [
+    {
+      "id": "asset_1",
+      "title": "Working title for this asset",
+      "type": "Asset type label exactly as specified above",
+      "source_moment": {
+        "opening": "Verbatim opening line from transcript",
+        "arc": "2–3 sentences: what happens between opening and closing",
+        "closing": "Verbatim closing line — the line that resolves the thought",
+        "closing_rationale": "Why this line closes the arc (omit for assets under 30s)"
+      },
+      "thumbnail_direction": "What the thumbnail should communicate — not describe, communicate",
+      "platform_copy": {
+        "youtube": "Full YouTube caption with hashtags and CTA",
+        "instagram": "Instagram caption with hashtags",
+        "linkedin": "LinkedIn caption"
+      }
+    }
+  ],
+  "production_notes": {
+    "recurring_themes": ["Theme or line that should appear across multiple assets"],
+    "flagged_for_future": ["Strong moments not used — with brief note on potential"],
+    "publish_sequence": [
+      { "order": 1, "asset_id": "asset_1", "rationale": "Why this goes first" }
+    ]
+  }
+}
+
+Only include platform keys for the requested platforms. Produce exactly the counts specified above — no more, no fewer. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.`;
+
   return p;
 }
 
@@ -461,14 +567,26 @@ function AssetCard({ asset, status, onApprove, onReject, frameioLink, onFrameioC
         <div>
           <div className="card-field-label">Source Moment</div>
           <div className="source-moment">
-            <div style={{ marginBottom: 6 }}>
+            <div style={{ marginBottom: 8 }}>
               <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>OPEN</span>
               <span>"{asset.source_moment?.opening}"</span>
             </div>
+            {asset.source_moment?.arc && (
+              <div style={{ marginBottom: 8, paddingLeft: 0 }}>
+                <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>ARC</span>
+                <span style={{ color: "#888", fontStyle: "italic" }}>{asset.source_moment.arc}</span>
+              </div>
+            )}
             {asset.source_moment?.closing && asset.source_moment.closing !== asset.source_moment.opening && (
-              <div>
+              <div style={{ marginBottom: asset.source_moment?.closing_rationale ? 6 : 0 }}>
                 <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>CLOSE</span>
                 <span>"{asset.source_moment?.closing}"</span>
+              </div>
+            )}
+            {asset.source_moment?.closing_rationale && (
+              <div style={{ paddingTop: 6, borderTop: "1px solid #1a1a18", marginTop: 4 }}>
+                <span style={{ fontSize: 9, color: "#555", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>WHY</span>
+                <span style={{ fontSize: 11, color: "#555", fontStyle: "italic" }}>{asset.source_moment.closing_rationale}</span>
               </div>
             )}
           </div>
