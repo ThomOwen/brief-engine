@@ -389,15 +389,23 @@ function buildArrayPrompt({ networks, network, sponsor, assetTypes, platforms, t
     return sum + (spec ? spec.count : 1);
   }, 0);
 
-  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully before selecting any moments. Produce a complete Media Array Breakdown as a JSON object.
-
-MANDATORY OUTPUT CHECKLIST — you must produce exactly these assets, no more, no fewer:
-${assetTypes.map(label => {
+  // Expand each asset type into individual numbered items so model treats each as a separate JSON object
+  let assetNum = 0;
+  const expandedChecklist = assetTypes.flatMap(label => {
     const spec = ASSET_TYPE_SPECS[label];
     const count = spec ? spec.count : 1;
-    return `  ☐ ${count}x ${label} (${spec ? spec.finished : "varies"})`;
-  }).join("\n")}
-TOTAL: ${totalAssets} assets required. Do not stop until all ${totalAssets} are in the JSON.
+    return Array.from({ length: count }, () => {
+      assetNum++;
+      return `  ${assetNum}. ${label} (${spec ? spec.finished : "varies"})`;
+    });
+  }).join("\n");
+
+  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully before selecting any moments. Produce a complete Media Array Breakdown as a JSON object.
+
+MANDATORY OUTPUT — you must produce exactly ${totalAssets} separate asset objects in the JSON assets array, one per line item below:
+${expandedChecklist}
+
+Each numbered item above = one object in the assets array. Do not combine them. Do not skip any. The assets array must have exactly ${totalAssets} items.
 
 \n\n${buildNetworkTone(net)}\n`;
   if (sponsor) p += `\nSPONSOR: ${sponsor.name} | Archetype: ${sponsor.archetype}\nMoral: ${sponsor.moral}\nPromise: ${sponsor.promise}\nAudience: ${sponsor.audience}\nUse network moral and pillars as the filter for clip selection. Layer sponsor archetype into framing.\n`;
