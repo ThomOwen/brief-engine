@@ -1102,6 +1102,19 @@ export default function BriefEngine() {
               {streaming ? (mode === "array" ? "READING TRANSCRIPT..." : "GENERATING...") : (mode === "array" ? "GENERATE MEDIA ARRAY" : "GENERATE BRIEF")}
             </button>
 
+            {!canGen && !streaming && (
+              <div style={{ marginTop: 6, fontSize: 10, color: "#C4642A", letterSpacing: ".04em", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {!network && <span>⚠ Select a network</span>}
+                {network && mode === "array" && assetTypes.length === 0 && <span>⚠ Select at least one asset type</span>}
+                {network && mode === "array" && arrayPlats.length === 0 && <span>⚠ Select at least one platform</span>}
+                {network && mode === "array" && transcript.trim().length <= 80 && <span>⚠ Transcript too short (need 80+ words)</span>}
+                {network && mode === "quick" && !contentType && <span>⚠ Select a content type</span>}
+                {network && mode === "quick" && quickPlats.length === 0 && <span>⚠ Select at least one platform</span>}
+                {network && mode === "quick" && !description.trim() && <span>⚠ Add a content description</span>}
+                {useSponsor && !activeSponsor && <span>⚠ Select or enter a sponsor brand</span>}
+              </div>
+            )}
+
             {network && (
               <div style={{ marginTop: 8, padding: "7px 12px", background: "#111110", border: "1px solid #161614", borderRadius: 3, display: "flex", gap: 16, flexWrap: "wrap", fontSize: 9, color: "#2e2e2c", letterSpacing: ".06em" }}>
                 <span>Network: <span style={{ color: aNet?.color }}>{aNet?.name}</span></span>
