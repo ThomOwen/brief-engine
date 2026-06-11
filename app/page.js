@@ -352,7 +352,7 @@ const ASSET_TYPE_SPECS = {
     source: "Requires a substantial continuous source span on a single topic",
     note: "Full development of one idea from setup through resolution. Not a highlight reel — a complete segment.",
   },
-  "Social Short": {
+  "Social Shorts": {
     count: 6,
     finished: "30–60 seconds",
     source: "Tight source span — one self-contained moment",
