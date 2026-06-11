@@ -374,6 +374,8 @@ const ASSET_TYPE_SPECS = {
 
 function buildArrayPrompt({ networks, network, sponsor, assetTypes, platforms, transcript, context }) {
   const net = networks[network];
+  if (!net) throw new Error(`Network "${network}" not found in networks object`);
+  if (!assetTypes || assetTypes.length === 0) throw new Error("No asset types selected");
 
   // Build per-type instructions for selected asset types
   const assetInstructions = assetTypes.map(label => {
@@ -751,9 +753,23 @@ export default function BriefEngine() {
     setFrameioLinks({});
     setTimeout(() => outRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
 
-    const prompt = mode === "array"
-      ? buildArrayPrompt({ networks, network, sponsor: activeSponsor, assetTypes: assetTypes.map(id => ARRAY_ASSET_TYPES.find(a => a.id === id)?.label), platforms: arrayPlats, transcript, context })
-      : buildQuickPrompt({ networks, network, sponsor: activeSponsor, contentType, platforms: quickPlats, description, transcript: useQT ? qTranscript : "" });
+    let prompt = "";
+    try {
+      prompt = mode === "array"
+        ? buildArrayPrompt({ networks, network, sponsor: activeSponsor, assetTypes: assetTypes.map(id => ARRAY_ASSET_TYPES.find(a => a.id === id)?.label).filter(Boolean), platforms: arrayPlats, transcript, context })
+        : buildQuickPrompt({ networks, network, sponsor: activeSponsor, contentType, platforms: quickPlats, description, transcript: useQT ? qTranscript : "" });
+    } catch (promptErr) {
+      console.error("Prompt build failed:", promptErr);
+      setRawOutput("[Error building prompt — please check your selections and try again]");
+      setStreaming(false);
+      return;
+    }
+
+    if (!prompt) {
+      setRawOutput("[No prompt generated — please select a network and try again]");
+      setStreaming(false);
+      return;
+    }
 
     let fullText = "";
 
