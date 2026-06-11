@@ -927,18 +927,51 @@ export default function BriefEngine() {
         const end = clean.lastIndexOf("}");
         if (start !== -1 && end !== -1) clean = clean.slice(start, end + 1);
         clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-        // Attempt parse; if it fails try to repair common issues
+
+        function repairJSON(str) {
+          // Remove trailing incomplete object/comma before closing
+          str = str.replace(/,\s*\{[^}]*$/, "").replace(/,\s*$/, "");
+          // Count unclosed brackets and braces
+          let braces = 0, brackets = 0, inStr = false, esc = false;
+          for (let i = 0; i < str.length; i++) {
+            const c = str[i];
+            if (esc) { esc = false; continue; }
+            if (c === "\\" && inStr) { esc = true; continue; }
+            if (c === '"') { inStr = !inStr; continue; }
+            if (inStr) continue;
+            if (c === "{") braces++; if (c === "}") braces--;
+            if (c === "[") brackets++; if (c === "]") brackets--;
+          }
+          while (brackets > 0) { str += "]"; brackets--; }
+          while (braces > 0) { str += "}"; braces--; }
+          return str;
+        }
+
         let parsed;
         try {
           parsed = JSON.parse(clean);
         } catch (firstErr) {
-          // Fix unescaped newlines/tabs within string values and retry
-          const repaired = clean
-            .replace(/\t/g, "\\t")
-            .replace(/\r\n/g, "\\n")
-            .replace(/\r/g, "\\n")
-            .replace(/([^\\])\n/g, "$1\\n");
-          parsed = JSON.parse(repaired);
+          try {
+            // Fix unescaped newlines then retry
+            const cleaned2 = clean.replace(/\r\n/g, "\\n").replace(/\r/g, "\\n").replace(/([^\\])\n/g, "$1\\n").replace(/\t/g, "\\t");
+            parsed = JSON.parse(cleaned2);
+          } catch (secondErr) {
+            // Try to repair truncated JSON
+            parsed = JSON.parse(repairJSON(clean));
+          }
+        }
+
+        // Normalise asset fields — handle both old (source_moment) and new (hook/body/close) schema
+        if (parsed?.assets) {
+          parsed.assets = parsed.assets.map(a => {
+            if (!a.hook && !a.body && a.source_moment) {
+              a.hook = a.source_moment.opening || "";
+              a.body = a.source_moment.arc || "";
+              a.close = a.source_moment.closing || "";
+              a.close_flag = a.source_moment.closing_rationale || "";
+            }
+            return a;
+          });
         }
         setParsedArray(parsed);
         const initApprovals = {};
