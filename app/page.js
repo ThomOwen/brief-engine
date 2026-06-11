@@ -233,6 +233,14 @@ function exportHTML(parsedArray, meta) {
         <div class="platform-label">${p.toUpperCase()}</div>
         <div class="platform-copy">${copy.replace(/\n/g, "<br>")}</div>
       </div>`).join("");
+    const sm = asset.source_moment || {};
+    const sourceMomentHTML = `
+      <div class="source-moment">
+        <div class="sm-line"><span class="sm-tag">OPEN</span> "${sm.opening || ""}"</div>
+        ${sm.arc ? `<div class="sm-arc"><span class="sm-tag">ARC</span> ${sm.arc}</div>` : ""}
+        ${sm.closing ? `<div class="sm-line"><span class="sm-tag">CLOSE</span> "${sm.closing}"</div>` : ""}
+        ${sm.closing_rationale ? `<div class="sm-rationale"><span class="sm-tag">WHY</span> ${sm.closing_rationale}</div>` : ""}
+      </div>`;
     return `
     <div class="asset-card">
       <div class="asset-header">
@@ -242,10 +250,7 @@ function exportHTML(parsedArray, meta) {
       <div class="asset-body">
         <div class="field">
           <div class="field-label">Source Moment</div>
-          <div class="source-moment">
-            <div class="sm-line"><span class="sm-tag">OPEN</span> "${asset.source_moment?.opening}"</div>
-            <div class="sm-line"><span class="sm-tag">CLOSE</span> "${asset.source_moment?.closing}"</div>
-          </div>
+          ${sourceMomentHTML}
         </div>
         <div class="field">
           <div class="field-label">Thumbnail Direction</div>
@@ -288,9 +293,10 @@ function exportHTML(parsedArray, meta) {
   .field-value{font-size:13px;line-height:1.65;color:#a0988e}
   .field-value.italic{font-style:italic}
   .source-moment{background:#0a0a09;border:1px solid #1a1a18;border-radius:3px;padding:12px 14px}
-  .sm-line{font-size:12px;color:#888;font-style:italic;line-height:1.6;margin-bottom:4px}
-  .sm-line:last-child{margin-bottom:0}
-  .sm-tag{color:#C4A82A;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.1em;margin-right:6px}
+  .sm-line{font-size:12px;color:#888;font-style:italic;line-height:1.6;margin-bottom:6px}
+  .sm-arc{font-size:12px;color:#666;line-height:1.65;margin-bottom:6px;padding:8px 10px;background:#0d0d0c;border-left:2px solid #222;border-radius:0 2px 2px 0}
+  .sm-rationale{font-size:11px;color:#555;font-style:italic;line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px solid #1a1a18}
+  .sm-tag{color:#C4A82A;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.1em;margin-right:8px}
   .platform-block{background:#0a0a09;border:1px solid #1a1a18;border-radius:3px;padding:12px 14px}
   .platform-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#C4A82A;margin-bottom:8px}
   .platform-copy{font-size:12px;line-height:1.75;color:#a0988e}
