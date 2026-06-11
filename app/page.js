@@ -538,6 +538,8 @@ TRANSCRIPT SELECTION RULES — read carefully:
 
 INTEGRITY RULE: Every word in hook, body, and close must exist verbatim in the transcript above. If you cannot find a real line that works, leave the field blank and set a flag. Never fabricate.
 
+JSON ESCAPING RULE: The hook, body, and close fields will contain raw transcript text. Any double-quote characters (") within that text MUST be escaped as \". Any backslashes must be escaped as \\. Failure to escape will break the JSON parse.
+
 Return ONLY a valid JSON object. No markdown, no code fences, no explanation.
 
 {
@@ -925,7 +927,19 @@ export default function BriefEngine() {
         const end = clean.lastIndexOf("}");
         if (start !== -1 && end !== -1) clean = clean.slice(start, end + 1);
         clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-        const parsed = JSON.parse(clean);
+        // Attempt parse; if it fails try to repair common issues
+        let parsed;
+        try {
+          parsed = JSON.parse(clean);
+        } catch (firstErr) {
+          // Fix unescaped newlines/tabs within string values and retry
+          const repaired = clean
+            .replace(/\t/g, "\\t")
+            .replace(/\r\n/g, "\\n")
+            .replace(/\r/g, "\\n")
+            .replace(/([^\\])\n/g, "$1\\n");
+          parsed = JSON.parse(repaired);
+        }
         setParsedArray(parsed);
         const initApprovals = {};
         (parsed.assets || []).forEach(a => { initApprovals[a.id] = "pending"; });
