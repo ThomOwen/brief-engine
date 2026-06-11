@@ -222,99 +222,98 @@ function copyCaption(assetId) {
   URL.revokeObjectURL(url);
 }
 
-// ─── HTML ARRAY EXPORT ────────────────────────────────────────────────────────
+// ─── EDITOR BRIEF EXPORT ──────────────────────────────────────────────────────
 
-function exportHTML(parsedArray, meta) {
+function exportEditorBrief(parsedArray, meta) {
   const date = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
-  const assetsHTML = (parsedArray.assets || []).map(asset => {
-    const platforms = Object.entries(asset.platform_copy || {});
-    const platformsHTML = platforms.map(([p, copy]) => `
-      <div class="platform-block">
-        <div class="platform-label">${p.toUpperCase()}</div>
-        <div class="platform-copy">${copy.replace(/\n/g, "<br>")}</div>
-      </div>`).join("");
-    const sm = asset.source_moment || {};
-    const sourceMomentHTML = `
-      <div class="source-moment">
-        <div class="sm-line"><span class="sm-tag">OPEN</span> "${sm.opening || ""}"</div>
-        ${sm.arc ? `<div class="sm-arc"><span class="sm-tag">ARC</span> ${sm.arc}</div>` : ""}
-        ${sm.closing ? `<div class="sm-line"><span class="sm-tag">CLOSE</span> "${sm.closing}"</div>` : ""}
-        ${sm.closing_rationale ? `<div class="sm-rationale"><span class="sm-tag">WHY</span> ${sm.closing_rationale}</div>` : ""}
-      </div>`;
+  const e = s => (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  const assetsHTML = (parsedArray.assets || []).map((asset, i) => {
+    const wc = BODY_WORD_COUNT[asset.type];
     return `
     <div class="asset-card">
       <div class="asset-header">
-        <span class="badge">${asset.type}</span>
-        <div class="asset-title">${asset.title}</div>
+        <div class="asset-meta"><span class="badge">${e(asset.type)}</span><span class="duration">${wc ? `${wc.min}–${wc.max} words · ` : ""}${asset.type === "Promo Trailer" ? "90–180s" : asset.type === "Teaser Clip" ? "60–90s" : asset.type === "Social Shorts" ? "30–60s" : asset.type === "Quote / Soundbite" ? "10–30s" : ""}</span></div>
+        <div class="asset-title">${e(asset.title)}</div>
       </div>
       <div class="asset-body">
-        <div class="field">
-          <div class="field-label">Source Moment</div>
-          ${sourceMomentHTML}
-        </div>
-        <div class="field">
-          <div class="field-label">Thumbnail Direction</div>
-          <div class="field-value italic">${asset.thumbnail_direction}</div>
-        </div>
-        ${platformsHTML}
+        ${asset.hook ? `
+        <div class="section">
+          <div class="section-label">Hook</div>
+          <div class="hook-text">"${e(asset.hook)}"</div>
+          ${asset.hook_flag ? `<div class="flag">${e(asset.hook_flag)}</div>` : ""}
+        </div>` : ""}
+        ${asset.body ? `
+        <div class="section">
+          <div class="section-label">Body</div>
+          <div class="body-text">"${e(asset.body)}"</div>
+        </div>` : ""}
+        ${asset.close ? `
+        <div class="section">
+          <div class="section-label">Close</div>
+          <div class="hook-text">"${e(asset.close)}"</div>
+          ${asset.close_flag ? `<div class="flag">${e(asset.close_flag)}</div>` : ""}
+        </div>` : ""}
+        ${asset.thumbnail_direction ? `
+        <div class="section">
+          <div class="section-label">Thumbnail</div>
+          <div class="thumb-text">${e(asset.thumbnail_direction)}</div>
+        </div>` : ""}
       </div>
     </div>`;
   }).join("");
 
   const notes = parsedArray.production_notes;
-  const notesHTML = notes ? `
-    <div class="notes-section">
-      <div class="notes-title">Production Notes</div>
-      ${notes.recurring_themes?.length ? `<div class="notes-group"><div class="notes-group-label">Recurring Themes</div>${notes.recurring_themes.map(t => `<div class="notes-item">— ${t}</div>`).join("")}</div>` : ""}
-      ${notes.flagged_for_future?.length ? `<div class="notes-group"><div class="notes-group-label">Flagged for Future</div>${notes.flagged_for_future.map(t => `<div class="notes-item">— ${t}</div>`).join("")}</div>` : ""}
-      ${notes.publish_sequence?.length ? `<div class="notes-group"><div class="notes-group-label">Publish Sequence</div>${notes.publish_sequence.map(s => { const a = parsedArray.assets?.find(x => x.id === s.asset_id); return `<div class="notes-item"><strong>${s.order}. ${a?.title || s.asset_id}</strong> — ${s.rationale}</div>`; }).join("")}</div>` : ""}
+  const seqHTML = notes?.publish_sequence?.length ? `
+    <div class="notes-card">
+      <div class="notes-title">Publish Sequence</div>
+      ${notes.publish_sequence.map(s => {
+        const a = parsedArray.assets?.find(x => x.id === s.asset_id);
+        return `<div class="notes-item"><span class="seq-num">${s.order}</span>${e(a?.title || s.asset_id)} — ${e(s.rationale)}</div>`;
+      }).join("")}
     </div>` : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Media Array — ${meta.network}${meta.sponsor ? ` · ${meta.sponsor}` : ""}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Editor Brief — ${e(meta.network)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Bebas+Neue&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0C0C0B;color:#E8E0D4;font-family:'DM Sans',sans-serif;padding:48px 32px;max-width:900px;margin:0 auto}
-  .header{margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #222}
-  .header-studio{font-size:10px;color:#C4A82A;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px}
-  .header-title{font-family:'Bebas Neue';font-size:36px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:4px}
-  .header-meta{font-size:12px;color:#555;letter-spacing:.04em}
-  .asset-card{background:#111110;border:1px solid #222;border-radius:4px;margin-bottom:20px;overflow:hidden}
-  .asset-header{padding:16px 20px 12px;border-bottom:1px solid #1a1a18}
-  .badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:rgba(196,168,42,.12);color:#C4A82A;margin-bottom:8px}
-  .asset-title{font-family:'Bebas Neue';font-size:22px;letter-spacing:.06em;color:#E8E0D4}
-  .asset-body{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
-  .field-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#444;margin-bottom:6px}
-  .field-value{font-size:13px;line-height:1.65;color:#a0988e}
-  .field-value.italic{font-style:italic}
-  .source-moment{background:#0a0a09;border:1px solid #1a1a18;border-radius:3px;padding:12px 14px}
-  .sm-line{font-size:12px;color:#888;font-style:italic;line-height:1.6;margin-bottom:6px}
-  .sm-arc{font-size:12px;color:#666;line-height:1.65;margin-bottom:6px;padding:8px 10px;background:#0d0d0c;border-left:2px solid #222;border-radius:0 2px 2px 0}
-  .sm-rationale{font-size:11px;color:#555;font-style:italic;line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px solid #1a1a18}
-  .sm-tag{color:#C4A82A;font-style:normal;font-size:9px;font-weight:700;letter-spacing:.1em;margin-right:8px}
-  .platform-block{background:#0a0a09;border:1px solid #1a1a18;border-radius:3px;padding:12px 14px}
-  .platform-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#C4A82A;margin-bottom:8px}
-  .platform-copy{font-size:12px;line-height:1.75;color:#a0988e}
-  .notes-section{background:#0e0e0d;border:1px solid #1a1a18;border-radius:4px;padding:20px;margin-top:8px}
-  .notes-title{font-family:'Bebas Neue';font-size:18px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:16px}
-  .notes-group{margin-bottom:16px}
-  .notes-group-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#C4A82A;margin-bottom:8px}
-  .notes-item{font-size:12px;color:#a0988e;line-height:1.6;margin-bottom:5px}
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0C0C0B;color:#E8E0D4;font-family:'DM Sans',sans-serif;padding:48px 32px;max-width:860px;margin:0 auto}
+.page-header{margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #1a1a18}
+.studio{font-size:9px;color:#C4A82A;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
+.page-title{font-family:'Bebas Neue';font-size:32px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:4px}
+.page-meta{font-size:11px;color:#444;letter-spacing:.04em}
+.asset-card{background:#111110;border:1px solid #1e1e1c;border-radius:4px;margin-bottom:24px;overflow:hidden}
+.asset-header{padding:16px 20px 14px;border-bottom:1px solid #1a1a18}
+.asset-meta{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.badge{font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:rgba(196,168,42,.12);color:#C4A82A}
+.duration{font-size:10px;color:#444;letter-spacing:.04em}
+.asset-title{font-family:'Bebas Neue';font-size:22px;letter-spacing:.06em;color:#E8E0D4}
+.asset-body{padding:18px 20px;display:flex;flex-direction:column;gap:16px}
+.section-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#C4A82A;margin-bottom:8px}
+.hook-text{font-size:13px;line-height:1.65;color:#C0B8B0;font-style:italic}
+.body-text{font-size:13px;line-height:1.85;color:#888;font-style:italic;background:#0a0a09;border:1px solid #1a1a18;border-left:3px solid #C4A82A;border-radius:0 3px 3px 0;padding:14px 16px;white-space:pre-wrap}
+.thumb-text{font-size:12px;line-height:1.6;color:#555;font-style:italic}
+.flag{font-size:10px;color:#854F0B;margin-top:5px;font-style:italic}
+.notes-card{background:#0e0e0d;border:1px solid #1a1a18;border-radius:4px;padding:20px;margin-top:8px}
+.notes-title{font-family:'Bebas Neue';font-size:16px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:14px}
+.notes-item{font-size:12px;color:#666;line-height:1.6;margin-bottom:6px;display:flex;gap:10px}
+.seq-num{color:#C4A82A;font-weight:700;min-width:16px}
+@media print{body{background:#fff;color:#111}.asset-card,.notes-card{border-color:#ddd;background:#fafafa}.body-text{background:#f5f5f5;border-color:#999;color:#333}.hook-text{color:#333}.asset-title,.page-title{color:#111}.badge{background:#f0e8cc;color:#8a6f00}.section-label,.studio,.seq-num{color:#8a6f00}.duration,.thumb-text,.flag,.page-meta{color:#666}}
 </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-studio">Indelible · Content OS</div>
-    <div class="header-title">Media Array — ${meta.network}${meta.sponsor ? ` · ${meta.sponsor}` : ""}</div>
-    <div class="header-meta">${(parsedArray.assets || []).length} assets · Generated ${date}</div>
-  </div>
-  ${assetsHTML}
-  ${notesHTML}
+<div class="page-header">
+  <div class="studio">Indelible · Editor Brief</div>
+  <div class="page-title">Media Array — ${e(meta.network)}${meta.sponsor ? ` · ${e(meta.sponsor)}` : ""}</div>
+  <div class="page-meta">${(parsedArray.assets || []).length} assets · ${date}</div>
+</div>
+${assetsHTML}
+${seqHTML}
 </body>
 </html>`;
 
@@ -322,7 +321,107 @@ function exportHTML(parsedArray, meta) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `media-array-${meta.network}-${Date.now()}.html`;
+  a.download = `editor-brief-${meta.network}-${Date.now()}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── CAPTION SHEET EXPORT ─────────────────────────────────────────────────────
+
+function exportCaptionSheet(parsedArray, meta) {
+  const date = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
+  const e = s => (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  const assetsHTML = (parsedArray.assets || []).map((asset) => {
+    const platforms = Object.entries(asset.platform_copy || {}).filter(([,v]) => v);
+    if (!platforms.length) return "";
+    const first = platforms[0][0];
+    const tabs = platforms.map(([p]) =>
+      `<button class="ptab${p===first?" active":""}" onclick="sw('${asset.id}','${p}',this)">${p==="youtube"?"YouTube":p==="instagram"?"Instagram":p==="linkedin"?"LinkedIn":p.toUpperCase()}</button>`
+    ).join("");
+    const copies = platforms.map(([p, copy]) =>
+      `<div class="pcopy" id="c-${asset.id}-${p}" style="display:${p===first?"block":"none"}"><div class="copy-text" id="t-${asset.id}-${p}">${e(copy).replace(/\n/g,"<br>")}</div></div>`
+    ).join("");
+    return `
+    <div class="asset-card">
+      <div class="asset-header">
+        <span class="badge">${e(asset.type)}</span>
+        <div class="asset-title">${e(asset.title)}</div>
+      </div>
+      <div class="asset-body">
+        <div class="tabs">${tabs}</div>
+        ${copies}
+        <div class="copy-row">
+          <button class="copy-btn" onclick="cp('${asset.id}')">Copy caption</button>
+        </div>
+        <div id="ok-${asset.id}" class="copied" style="display:none">Copied ✓</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caption Sheet — ${e(meta.network)}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0C0C0B;color:#E8E0D4;font-family:'DM Sans',sans-serif;padding:48px 32px;max-width:860px;margin:0 auto}
+.page-header{margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #1a1a18}
+.studio{font-size:9px;color:#C4A82A;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
+.page-title{font-family:'Bebas Neue';font-size:32px;letter-spacing:.08em;color:#E8E0D4;margin-bottom:4px}
+.page-meta{font-size:11px;color:#444;letter-spacing:.04em}
+.asset-card{background:#111110;border:1px solid #1e1e1c;border-radius:4px;margin-bottom:20px;overflow:hidden}
+.asset-header{padding:16px 20px 12px;border-bottom:1px solid #1a1a18}
+.badge{display:inline-block;font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:rgba(196,168,42,.12);color:#C4A82A;margin-bottom:8px}
+.asset-title{font-family:'Bebas Neue';font-size:20px;letter-spacing:.06em;color:#E8E0D4}
+.asset-body{padding:16px 20px}
+.tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.ptab{background:transparent;border:1px solid #222;color:#444;font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:2px;cursor:pointer;transition:all .15s}
+.ptab.active{border-color:#C4A82A;color:#C4A82A;background:rgba(196,168,42,.06)}
+.copy-text{font-size:13px;line-height:1.8;color:#888;white-space:pre-wrap;word-break:break-word}
+.copy-row{margin-top:12px}
+.copy-btn{background:transparent;border:1px solid #252523;color:#555;font-family:'DM Sans',sans-serif;font-size:10px;letter-spacing:.07em;text-transform:uppercase;padding:6px 14px;border-radius:2px;cursor:pointer}
+.copy-btn:hover{border-color:#555;color:#888}
+.copied{font-size:10px;color:#639922;margin-top:5px}
+</style>
+</head>
+<body>
+<div class="page-header">
+  <div class="studio">Indelible · Caption Sheet</div>
+  <div class="page-title">Captions — ${e(meta.network)}${meta.sponsor ? ` · ${e(meta.sponsor)}` : ""}</div>
+  <div class="page-meta">${(parsedArray.assets || []).filter(a => Object.keys(a.platform_copy||{}).length).length} assets · ${date}</div>
+</div>
+${assetsHTML}
+<script>
+function sw(id,p,btn){
+  const card=btn.closest('.asset-card');
+  card.querySelectorAll('.pcopy').forEach(el=>el.style.display='none');
+  card.querySelectorAll('.ptab').forEach(el=>el.classList.remove('active'));
+  const t=document.getElementById('c-'+id+'-'+p);
+  if(t)t.style.display='block';
+  btn.classList.add('active');
+}
+function cp(id){
+  const card=document.querySelector('[id^="c-'+id+'"][style*="block"]')||document.querySelector('[id^="c-'+id+'"]');
+  const txt=card?.querySelector('.copy-text');
+  if(!txt)return;
+  navigator.clipboard.writeText(txt.innerText).then(()=>{
+    const ok=document.getElementById('ok-'+id);
+    if(ok){ok.style.display='block';setTimeout(()=>ok.style.display='none',2000);}
+  });
+}
+</script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `captions-${meta.network}-${Date.now()}.html`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -372,80 +471,86 @@ const ASSET_TYPE_SPECS = {
   },
 };
 
+const BODY_WORD_COUNT = {
+  "Promo Trailer":     { min: 180, max: 360 },
+  "Teaser Clip":       { min: 120, max: 180 },
+  "Segment Breakdown": { min: 600, max: 1200 },
+  "Social Shorts":     { min: 60,  max: 120 },
+  "Quote / Soundbite": { min: 15,  max: 45  },
+  "Full Episode Cut":  { min: 600, max: 9999 },
+};
+
 function buildArrayPrompt({ networks, network, sponsor, assetTypes, platforms, transcript, context }) {
   const net = networks[network];
   if (!net) throw new Error(`Network "${network}" not found in networks object`);
   if (!assetTypes || assetTypes.length === 0) throw new Error("No asset types selected");
-
-  // Build per-type instructions for selected asset types
-  const assetInstructions = assetTypes.map(label => {
-    const spec = ASSET_TYPE_SPECS[label];
-    if (!spec) return `- ${label}: produce 1`;
-    return `- ${label}: produce exactly ${spec.count} | Finished length: ${spec.finished} | ${spec.source} | ${spec.note}`;
-  }).join("\n");
 
   const totalAssets = assetTypes.reduce((sum, label) => {
     const spec = ASSET_TYPE_SPECS[label];
     return sum + (spec ? spec.count : 1);
   }, 0);
 
-  // Expand each asset type into individual numbered items so model treats each as a separate JSON object
   let assetNum = 0;
   const expandedChecklist = assetTypes.flatMap(label => {
     const spec = ASSET_TYPE_SPECS[label];
     const count = spec ? spec.count : 1;
+    const wc = BODY_WORD_COUNT[label];
     return Array.from({ length: count }, () => {
       assetNum++;
-      return `  ${assetNum}. ${label} (${spec ? spec.finished : "varies"})`;
+      return `  ${assetNum}. ${label} — body block: ${wc ? `${wc.min}–${wc.max} words` : "varies"} | finished duration: ${spec ? spec.finished : "varies"}`;
     });
   }).join("\n");
 
-  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully before selecting any moments. Produce a complete Media Array Breakdown as a JSON object.
+  let p = `You are a senior content strategist and creative director at Indelible. Read the entire transcript carefully before selecting any moments. Every line you select must be copied verbatim from the transcript — do not paraphrase, summarize, or invent any text.
 
-MANDATORY OUTPUT — you must produce exactly ${totalAssets} separate asset objects in the JSON assets array, one per line item below:
+MANDATORY OUTPUT — produce exactly ${totalAssets} asset objects, one per line item:
 ${expandedChecklist}
 
-Each numbered item above = one object in the assets array. Do not combine them. Do not skip any. The assets array must have exactly ${totalAssets} items.
+Each numbered item = one object in the assets array. Do not combine or skip any.
 
-\n\n${buildNetworkTone(net)}\n`;
-  if (sponsor) p += `\nSPONSOR: ${sponsor.name} | Archetype: ${sponsor.archetype}\nMoral: ${sponsor.moral}\nPromise: ${sponsor.promise}\nAudience: ${sponsor.audience}\nUse network moral and pillars as the filter for clip selection. Layer sponsor archetype into framing.\n`;
-  if (context) p += `\nCONTEXT: ${context}\n`;
+${buildNetworkTone(net)}
+`;
+
+  if (sponsor) p += `
+SPONSOR: ${sponsor.name} | Archetype: ${sponsor.archetype}
+Moral: ${sponsor.moral}
+Promise: ${sponsor.promise}
+Audience: ${sponsor.audience}
+Filter clip selection through network moral and pillars. Layer sponsor archetype into framing.
+`;
+  if (context) p += `
+CONTEXT: ${context}
+`;
 
   p += `
-ASSET SPECIFICATIONS:
-${assetInstructions}
-
-PLATFORMS: ${platforms.join(", ")}
-
-CLOSING LINE RULE:
-For any asset longer than 30 seconds, the closing line must resolve the thought. It is not simply where the speaker pauses or the clip ends — it is the line that lands the point, completes the arc, or delivers the moral. Choose deliberately. If no clean resolution exists in the transcript, find the closest landing and note it.
-
-SOURCE MOMENT FORMAT:
-Every asset requires three fields:
-- opening: Verbatim first line from the transcript that begins the clip
-- arc: 2–3 sentences describing what happens between opening and closing — the development, turn, build, or argument
-- closing: Verbatim final line — the resolution. For assets under 30 seconds, this is the punchline or the sharpest line. For assets over 30 seconds, this must close the thought.
-- closing_rationale: One sentence explaining why this line ends the clip — what it resolves, lands, or completes. Omit for assets under 30 seconds.
-
 TRANSCRIPT:
 ${transcript}
 
 ---
 
-Return ONLY a valid JSON object. No markdown, no explanation, no code fences. The JSON must follow this exact schema:
+TRANSCRIPT SELECTION RULES — read carefully:
+
+1. HOOK — one verbatim sentence from anywhere in the transcript. It does not need to appear before the body chronologically, but it must be thematically connected to the body content. Choose the single sharpest, most compelling line related to this clip's theme. If no strong hook exists, leave it blank — do not invent one.
+
+2. BODY — a contiguous verbatim block copied directly from the transcript. Hit the word count target for this asset type. Do not skip lines within the block. Do not paraphrase. Copy the exact words as they appear. The body is the edit window — everything the editor needs is inside it.
+
+3. CLOSE — one verbatim sentence from within or immediately after the body block that resolves the thought. It must land the point, complete the arc, or deliver the moral. For soundbites, the close is the last line of the body. If no clean close exists, note it — do not invent one.
+
+INTEGRITY RULE: Every word in hook, body, and close must exist verbatim in the transcript above. If you cannot find a real line that works, leave the field blank and set a flag. Never fabricate.
+
+Return ONLY a valid JSON object. No markdown, no code fences, no explanation.
 
 {
   "assets": [
     {
       "id": "asset_1",
       "title": "Working title for this asset",
-      "type": "Asset type label exactly as specified above",
-      "source_moment": {
-        "opening": "Verbatim opening line from transcript",
-        "arc": "2–3 sentences: what happens between opening and closing",
-        "closing": "Verbatim closing line — the line that resolves the thought",
-        "closing_rationale": "Why this line closes the arc (omit for assets under 30s)"
-      },
+      "type": "Asset type label exactly as listed above",
+      "hook": "One verbatim sentence from the transcript — the opening pull. Leave blank if none found.",
+      "hook_flag": "Optional: note if no strong hook was found",
+      "body": "Contiguous verbatim block from the transcript. Hit the word count target. No paraphrasing.",
+      "close": "One verbatim sentence that resolves the thought. From within or just after the body.",
+      "close_flag": "Optional: note if no clean close was found",
       "thumbnail_direction": "What the thumbnail should communicate — not describe, communicate",
       "platform_copy": {
         "youtube": "Full YouTube caption with hashtags and CTA",
@@ -455,17 +560,17 @@ Return ONLY a valid JSON object. No markdown, no explanation, no code fences. Th
     }
   ],
   "production_notes": {
-    "recurring_themes": ["Theme or line that should appear across multiple assets"],
-    "flagged_for_future": ["Strong moments not used — with brief note on potential"],
+    "recurring_themes": ["Theme or line worth repeating across assets"],
+    "flagged_for_future": ["Strong moments not used — brief note on potential"],
     "publish_sequence": [
       { "order": 1, "asset_id": "asset_1", "rationale": "Why this goes first" }
     ]
   }
 }
 
-Only include platform keys for the requested platforms. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.
+Only include platform keys for the requested platforms. Write all platform copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.
 
-FINAL CHECK: Count the assets array in your JSON before returning. It must contain exactly ${totalAssets} items. If the count is short, generate the missing assets before closing the JSON.`;
+FINAL CHECK: Count assets array before returning. Must have exactly ${totalAssets} items. If short, add the missing ones before closing the JSON.`;
 
   return p;
 }
@@ -593,28 +698,26 @@ function AssetCard({ asset, status, onApprove, onReject, frameioLink, onFrameioC
       </div>
       <div className="card-body">
         <div>
-          <div className="card-field-label">Source Moment</div>
+          <div className="card-field-label">Transcript Selection</div>
           <div className="source-moment">
-            <div style={{ marginBottom: 8 }}>
-              <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>OPEN</span>
-              <span>"{asset.source_moment?.opening}"</span>
-            </div>
-            {asset.source_moment?.arc && (
-              <div style={{ marginBottom: 8, paddingLeft: 0 }}>
-                <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>ARC</span>
-                <span style={{ color: "#888", fontStyle: "italic" }}>{asset.source_moment.arc}</span>
+            {asset.hook && (
+              <div style={{ marginBottom: 10 }}>
+                <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>HOOK</span>
+                <span style={{ fontStyle: "italic" }}>"{asset.hook}"</span>
+                {asset.hook_flag && <div style={{ fontSize: 10, color: "#555", marginTop: 3, marginLeft: 32 }}>{asset.hook_flag}</div>}
               </div>
             )}
-            {asset.source_moment?.closing && asset.source_moment.closing !== asset.source_moment.opening && (
-              <div style={{ marginBottom: asset.source_moment?.closing_rationale ? 6 : 0 }}>
+            {asset.body && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginBottom: 6 }}>BODY</div>
+                <div style={{ fontSize: 12, color: "#888", lineHeight: 1.75, background: "#0a0a09", border: "1px solid #1a1a18", borderRadius: 3, padding: "10px 12px", fontStyle: "italic", whiteSpace: "pre-wrap" }}>"{asset.body}"</div>
+              </div>
+            )}
+            {asset.close && (
+              <div>
                 <span style={{ fontSize: 9, color: "#C4A82A", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>CLOSE</span>
-                <span>"{asset.source_moment?.closing}"</span>
-              </div>
-            )}
-            {asset.source_moment?.closing_rationale && (
-              <div style={{ paddingTop: 6, borderTop: "1px solid #1a1a18", marginTop: 4 }}>
-                <span style={{ fontSize: 9, color: "#555", fontWeight: 700, letterSpacing: ".1em", marginRight: 8 }}>WHY</span>
-                <span style={{ fontSize: 11, color: "#555", fontStyle: "italic" }}>{asset.source_moment.closing_rationale}</span>
+                <span style={{ fontStyle: "italic" }}>"{asset.close}"</span>
+                {asset.close_flag && <div style={{ fontSize: 10, color: "#555", marginTop: 3, marginLeft: 32 }}>{asset.close_flag}</div>}
               </div>
             )}
           </div>
@@ -1136,7 +1239,8 @@ export default function BriefEngine() {
                         <div className="approval-stat rejected"><span>{rejectedCount}</span> rejected</div>
                         <div className="approval-stat"><span>{totalAssets - approvedCount - rejectedCount}</span> pending</div>
                         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-                          <button className="cpb" onClick={() => exportHTML(parsedArray, exportMeta || { network: "", sponsor: null })}>Export Array HTML</button>
+                          <button className="cpb" onClick={() => exportEditorBrief(parsedArray, exportMeta || { network: "", sponsor: null })}>Editor Brief</button>
+                          <button className="cpb" onClick={() => exportCaptionSheet(parsedArray, exportMeta || { network: "", sponsor: null })}>Caption Sheet</button>
                           <button className="cpb"
                             style={{ borderColor: approvedCount > 0 ? "rgba(196,168,42,.4)" : undefined, color: approvedCount > 0 ? "#C4A82A" : undefined }}
                             onClick={() => exportClientHTML({ parsedArray, clientName, episodeName, threadSummary, frameioLinks, approvals })}>
