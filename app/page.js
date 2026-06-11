@@ -381,12 +381,22 @@ function buildArrayPrompt({ networks, network, sponsor, assetTypes, platforms, t
     return sum + (spec ? spec.count : 1);
   }, 0);
 
-  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully before selecting any moments. Produce a complete Media Array Breakdown as a JSON object.\n\n${buildNetworkTone(net)}\n`;
+  let p = `You are a senior content strategist and creative director at Indelible. Read the full transcript carefully before selecting any moments. Produce a complete Media Array Breakdown as a JSON object.
+
+MANDATORY OUTPUT CHECKLIST — you must produce exactly these assets, no more, no fewer:
+${assetTypes.map(label => {
+    const spec = ASSET_TYPE_SPECS[label];
+    const count = spec ? spec.count : 1;
+    return `  ☐ ${count}x ${label} (${spec ? spec.finished : "varies"})`;
+  }).join("\n")}
+TOTAL: ${totalAssets} assets required. Do not stop until all ${totalAssets} are in the JSON.
+
+\n\n${buildNetworkTone(net)}\n`;
   if (sponsor) p += `\nSPONSOR: ${sponsor.name} | Archetype: ${sponsor.archetype}\nMoral: ${sponsor.moral}\nPromise: ${sponsor.promise}\nAudience: ${sponsor.audience}\nUse network moral and pillars as the filter for clip selection. Layer sponsor archetype into framing.\n`;
   if (context) p += `\nCONTEXT: ${context}\n`;
 
   p += `
-REQUIRED ASSET OUTPUT (${totalAssets} total assets):
+ASSET SPECIFICATIONS:
 ${assetInstructions}
 
 PLATFORMS: ${platforms.join(", ")}
@@ -437,9 +447,9 @@ Return ONLY a valid JSON object. No markdown, no explanation, no code fences. Th
   }
 }
 
-Only include platform keys for the requested platforms. Produce exactly the counts specified above — no more, no fewer. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.`;
+Only include platform keys for the requested platforms. Write all copy in the voice of ${net.name}${sponsor ? ` and ${sponsor.name}` : ""}.
 
-  return p;
+FINAL CHECK: Count the assets array in your JSON before returning. It must contain exactly ${totalAssets} items. If the count is short, generate the missing assets before closing the JSON.`;
 }
 
 function buildQuickPrompt({ networks, network, sponsor, contentType, platforms, description, transcript }) {
